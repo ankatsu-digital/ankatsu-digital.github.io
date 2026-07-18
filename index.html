@@ -278,17 +278,14 @@ alert(
 
 catch(error){
 
+ console.error(
+   "FCM ERROR:",
+   error
+ );
 
-console.error(
-error
-);
-
-
-alert(
-"Token取得失敗"
-);
-
-
+ alert(
+   error.message
+ );
 
 }
 
