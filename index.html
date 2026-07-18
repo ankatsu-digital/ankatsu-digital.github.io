@@ -2,12 +2,14 @@
 <html lang="ja">
 
 <head>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>アンカツ＋</title>
+<title>アンカツ＋ 通知登録</title>
 
 </head>
+
 
 <body>
 
@@ -15,11 +17,11 @@
 <h1>🏯 アンカツ＋</h1>
 
 <p>
-プッシュ通知登録
+プッシュ通知を受け取る
 </p>
 
 
-<button id="btn">
+<button id="notifyBtn">
 通知を許可する
 </button>
 
@@ -31,45 +33,53 @@
 <script type="module">
 
 
+// Firebase
+
 import { initializeApp }
 from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 
 
 import {
-getMessaging,
-getToken
+ getMessaging,
+ getToken
 }
 from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
 
 
 
 // Firebase設定
+
 const firebaseConfig = {
 
-apiKey: "ここに入力",
+  apiKey: "AIzaSyCzNeQzzoUuMVhZEzE9IEZ8WgVBcTyNuHc",
 
-authDomain: "ここに入力",
+  authDomain: "test-54a1b.firebaseapp.com",
 
-projectId: "ここに入力",
+  projectId: "test-54a1b",
 
-storageBucket: "ここに入力",
+  storageBucket: "test-54a1b.firebasestorage.app",
 
-messagingSenderId: "ここに入力",
+  messagingSenderId: "401926525341",
 
-appId: "ここに入力"
+  appId: "1:401926525341:web:078a2f16ea8219799e9f74",
+
+  measurementId: "G-MC4CGYGMX2"
 
 };
 
 
 
-// Firebase開始
+// Firebase初期化
 
 const app =
 initializeApp(firebaseConfig);
 
 
+// Firebase Messaging
+
 const messaging =
 getMessaging(app);
+
 
 
 
@@ -83,7 +93,7 @@ const GAS_URL =
 
 
 document
-.getElementById("btn")
+.getElementById("notifyBtn")
 .onclick = async()=>{
 
 
@@ -113,6 +123,7 @@ return;
 
 
 
+
 // FCMトークン取得
 
 const token =
@@ -120,34 +131,28 @@ await getToken(
 messaging,
 {
 
+// Firebase Console
+// Cloud Messaging
+// Web Push証明書のキー
+
 vapidKey:
-"ここにVAPIDキー"
+"BAQyKRS74_KvlFJUrQuOAr4uH2gkUD2hgi0QyPUppPvAOOgYt29mK2GIiUhyty23qXQrWV9d352ivngWjV7FTRs"
 
 }
 
 );
+
 
 
 
 if(!token){
 
 throw new Error(
-"トークン取得失敗"
+"FCMトークン取得失敗"
 );
 
 }
 
-
-
-// 表示
-
-document
-.getElementById("status")
-.innerHTML =
-`
-登録完了<br><br>
-${token}
-`;
 
 
 
@@ -158,10 +163,22 @@ token
 
 
 
+document
+.getElementById("status")
+.innerHTML =
+`
+登録完了<br>
+通知を受け取れる状態です
+`;
 
 
-// GASへ送信
 
+
+
+
+// GASへ保存
+
+const result =
 await fetch(
 GAS_URL,
 {
@@ -183,11 +200,9 @@ JSON.stringify({
 
 token:token,
 
-device:
-navigator.userAgent
+device:"Chrome"
 
 })
-
 
 }
 
@@ -196,7 +211,8 @@ navigator.userAgent
 
 
 console.log(
-"GAS保存完了"
+"GAS:",
+await result.text()
 );
 
 
@@ -216,6 +232,7 @@ document
 
 
 }
+
 
 
 };
