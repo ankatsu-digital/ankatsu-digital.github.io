@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Firebase Push Notification Test</title>
+
+<style>
+
+body{
+  font-family:
+  "Noto Sans JP",
+  sans-serif;
+
+  padding:40px;
+
+  text-align:center;
+}
+
+
+button{
+
+  padding:15px 30px;
+
+  font-size:16px;
+
+  cursor:pointer;
+
+}
+
+
+#token{
+
+  margin-top:30px;
+
+  word-break:break-all;
+
+  font-size:12px;
+
+  background:#f5f5f5;
+
+  padding:20px;
+
+}
+
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<h1>
+Firebase プッシュ通知テスト
+</h1>
+
+
+<p>
+通知を許可すると、このブラウザへ通知を送信できます。
+</p>
+
+
+<button id="notify">
+通知を許可する
+</button>
+
+
+<h3>
+FCM Token
+</h3>
+
+
+<div id="token">
+まだ取得していません
+</div>
+
+
+
+<script type="module">
+
+
+import { initializeApp } from
+"https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+
+
+import { getAnalytics } from
+"https://www.gstatic.com/firebasejs/10.13.2/firebase-analytics.js";
+
+
+import {
+
+getMessaging,
+
+getToken,
+
+onMessage
+
+}
+
+from
+
+"https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging.js";
+
+
+
+
+
+// Firebase設定
+
+const firebaseConfig = {
+
+
+apiKey:
+"AIzaSyCzNeQzzoUuMVhZEzE9IEZ8WgVBcTyNuHc",
+
+
+authDomain:
+"test-54a1b.firebaseapp.com",
+
+
+projectId:
+"test-54a1b",
+
+
+storageBucket:
+"test-54a1b.firebasestorage.app",
+
+
+messagingSenderId:
+"401926525341",
+
+
+appId:
+"1:401926525341:web:078a2f16ea8219799e9f74",
+
+
+measurementId:
+"G-MC4CGYGMX2"
+
+};
+
+
+
+
+
+// Firebase開始
+
+const app =
+initializeApp(firebaseConfig);
+
+
+
+const analytics =
+getAnalytics(app);
+
+
+
+const messaging =
+getMessaging(app);
+
+
+
+
+
+
+// Service Worker登録
+
+if("serviceWorker" in navigator){
+
+
+navigator.serviceWorker.register(
+"/firebase-messaging-sw.js"
+)
+
+.then((registration)=>{
+
+
+console.log(
+"Service Worker登録成功",
+registration
+);
+
+
+});
+
+
+}
+
+
+
+
+
+
+// ボタン押下
+
+document
+.getElementById("notify")
+.addEventListener(
+"click",
+async()=>{
+
+
+const permission =
+await Notification.requestPermission();
+
+
+
+if(permission !== "granted"){
+
+
+alert(
+"通知が許可されませんでした"
+);
+
+
+return;
+
+
+}
+
+
+
+
+try{
+
+
+const token =
+await getToken(
+
+messaging,
+
+{
+
+
+vapidKey:
+
+"BAQyKRS74_KvlFJUrQuOAr4uH2gkUD2hgi0QyPUppPvAOOgYt29mK2GIiUhyty23qXQrWV9d352ivngWjV7FTRs"
+
+
+}
+
+);
+
+
+
+
+
+console.log(
+"FCM TOKEN",
+token
+);
+
+
+
+document
+.getElementById("token")
+.textContent =
+token;
+
+
+
+
+
+alert(
+"FCM Tokenを取得しました"
+);
+
+
+
+
+}
+
+catch(error){
+
+
+console.error(
+error
+);
+
+
+alert(
+"Token取得失敗"
+);
+
+
+
+}
+
+
+
+});
+
+
+
+
+
+
+
+
+// ページ表示中の通知
+
+onMessage(
+messaging,
+
+(payload)=>{
+
+
+console.log(
+"Foreground Message",
+payload
+);
+
+
+
+alert(
+
+payload.notification.title
++
+"\n\n"
++
+payload.notification.body
+
+);
+
+
+
+}
+
+);
+
+
+
+</script>
+
+
+
+</body>
+
+</html>
