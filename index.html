@@ -1,160 +1,347 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>全国 津波情報モニタ</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      margin: 20px;
-      background-color: #f4f4f9;
-    }
-    
-    .alert-box {
-      display: none;
-      padding: 20px;
-      border-radius: 8px;
-      color: #fff;
-      font-weight: bold;
-      text-align: center;
-      margin-top: 20px;
-      line-height: 1.6;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>津波情報モニター | Tsunami Watch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-deep:#081019;
+    --bg-panel:#101B2D;
+    --bg-panel-2:#16253C;
+    --line:#233350;
+    --text-main:#E9EFF7;
+    --text-muted:#7C93B3;
+    --safe:#2DD4BF;
+    --advisory:#FBBF24;
+    --warning:#E23B3B;
+    --major:#B00E0E;
+  }
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0; padding:0; min-height:100vh;
+    background:
+      radial-gradient(ellipse at 20% -10%, rgba(45,212,191,0.08), transparent 60%),
+      radial-gradient(ellipse at 100% 0%, rgba(178,14,14,0.06), transparent 55%),
+      var(--bg-deep);
+    color:var(--text-main);
+    font-family:'Zen Kaku Gothic New', 'Hiragino Sans', sans-serif;
+    transition:background-color 0.6s ease;
+  }
+  .mono{ font-family:'DM Mono', monospace; letter-spacing:0.02em; }
 
-    /* 各警報レベルのスタイル */
-    .major-tsunami {
-      background-color: #c40000;
-      font-size: 24px;
-      animation: blink 1s infinite;
-    }
+  /* Horizon signature bar */
+  .horizon{
+    position:relative; height:3px; width:100%;
+    background:linear-gradient(90deg, transparent, var(--safe), transparent);
+    background-size:200% 100%;
+    animation:sweep 4.5s linear infinite;
+    opacity:0.7;
+  }
+  .horizon.advisory{ background:linear-gradient(90deg, transparent, var(--advisory), transparent); background-size:200% 100%; }
+  .horizon.warning{ background:linear-gradient(90deg, transparent, var(--warning), transparent); background-size:200% 100%; }
+  .horizon.major{ background:linear-gradient(90deg, transparent, var(--major), transparent); background-size:200% 100%; animation-duration:1.6s; }
+  @keyframes sweep{ 0%{background-position:200% 0;} 100%{background-position:-200% 0;} }
 
-    .tsunami {
-      background-color: #e60000;
-      font-size: 20px;
-    }
+  header{
+    max-width:880px; margin:0 auto; padding:36px 24px 12px;
+  }
+  .eyebrow{
+    font-size:12px; letter-spacing:0.18em; color:var(--text-muted); text-transform:uppercase;
+    display:flex; align-items:center; gap:10px;
+  }
+  .eyebrow::before{ content:''; width:6px; height:6px; border-radius:50%; background:var(--safe); box-shadow:0 0 8px var(--safe); }
+  h1{
+    font-size:clamp(24px, 4vw, 34px); font-weight:900; margin:8px 0 4px; line-height:1.25;
+  }
+  .sub{ color:var(--text-muted); font-size:14px; margin:0; }
 
-    .advisory {
-      background-color: #f29c00;
-      font-size: 18px;
-    }
+  main{ max-width:880px; margin:0 auto; padding:8px 24px 60px; }
 
-    .normal {
-      display: block;
-      background-color: #28a745;
-      font-size: 16px;
-    }
+  /* Status Card */
+  .status-card{
+    border-radius:18px; padding:32px 28px; margin:22px 0 18px;
+    border:1px solid var(--line);
+    background:var(--bg-panel);
+    position:relative; overflow:hidden;
+    transition:background-color 0.5s ease, border-color 0.5s ease;
+  }
+  .status-card .badge{
+    display:inline-flex; align-items:center; gap:8px;
+    font-size:12px; letter-spacing:0.12em; text-transform:uppercase;
+    padding:5px 12px; border-radius:999px; margin-bottom:16px;
+    font-family:'DM Mono', monospace;
+  }
+  .status-card .message{
+    font-size:clamp(19px, 3.2vw, 26px); font-weight:700; line-height:1.5; margin:0 0 6px;
+  }
+  .status-card .detail{ font-size:14px; color:var(--text-muted); margin:0; }
 
-    .area-list {
-      margin-top: 10px;
-      font-size: 15px;
-      background: rgba(0, 0, 0, 0.2);
-      padding: 10px;
-      border-radius: 4px;
-      text-align: left;
-    }
+  /* state: safe */
+  .state-safe{ background:linear-gradient(160deg, #0E2621, var(--bg-panel) 60%); border-color:#1F4A42; }
+  .state-safe .badge{ background:rgba(45,212,191,0.12); color:var(--safe); border:1px solid rgba(45,212,191,0.35); }
 
-    @keyframes blink {
-      0% { opacity: 1; }
-      50% { opacity: 0.4; }
-      100% { opacity: 1; }
-    }
-  </style>
+  /* state: advisory */
+  .state-advisory{ background:linear-gradient(160deg, #3A2E08, var(--bg-panel) 60%); border-color:#5C4A12; }
+  .state-advisory .badge{ background:rgba(251,191,36,0.14); color:var(--advisory); border:1px solid rgba(251,191,36,0.4); }
+
+  /* state: warning */
+  .state-warning{ background:linear-gradient(160deg, #3A0E0E, var(--bg-panel) 60%); border-color:#6B1616; }
+  .state-warning .badge{ background:rgba(226,59,59,0.15); color:#FF7B7B; border:1px solid rgba(226,59,59,0.45); }
+
+  /* state: major - blinking */
+  .state-major{
+    background:var(--major); border-color:#FF4444;
+    animation:blink-bg 1s step-start infinite;
+  }
+  .state-major .badge{ background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.4); }
+  .state-major .message, .state-major .detail{ color:#fff; }
+  @keyframes blink-bg{
+    0%, 49%{ background-color:#B00E0E; }
+    50%, 100%{ background-color:#5A0707; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .state-major{ animation:none; background:#8A0B0B; }
+    .horizon{ animation:none; }
+  }
+
+  /* Area list */
+  .areas-wrap{ margin:18px 0; }
+  .areas-title{
+    font-size:13px; color:var(--text-muted); letter-spacing:0.08em; margin-bottom:10px;
+    text-transform:uppercase;
+  }
+  .areas-grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:10px;
+  }
+  .area-chip{
+    border:1px solid var(--line); border-radius:10px; padding:10px 12px;
+    background:var(--bg-panel); font-size:14px; display:flex; flex-direction:column; gap:4px;
+  }
+  .area-chip .grade{
+    font-family:'DM Mono', monospace; font-size:11px; letter-spacing:0.05em;
+  }
+  .area-chip.g-major{ border-color:#FF4444; background:#2A0808; }
+  .area-chip.g-major .grade{ color:#FF7B7B; }
+  .area-chip.g-warning{ border-color:#6B1616; background:#2A0E0E; }
+  .area-chip.g-warning .grade{ color:#FF9B9B; }
+  .area-chip.g-watch{ border-color:#5C4A12; background:#2A2005; }
+  .area-chip.g-watch .grade{ color:var(--advisory); }
+
+  /* Controls */
+  .controls{
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;
+    margin-top:22px; padding-top:18px; border-top:1px solid var(--line);
+  }
+  .last-updated{ font-size:12px; color:var(--text-muted); }
+  .last-updated span{ color:var(--text-main); }
+  button#refresh-btn{
+    background:var(--bg-panel-2); color:var(--text-main); border:1px solid var(--line);
+    padding:10px 18px; border-radius:10px; font-size:14px; cursor:pointer;
+    display:flex; align-items:center; gap:8px; font-family:inherit;
+    transition:background-color 0.2s ease, transform 0.15s ease;
+  }
+  button#refresh-btn:hover{ background:#1D2E4A; }
+  button#refresh-btn:active{ transform:scale(0.97); }
+  button#refresh-btn:focus-visible{ outline:2px solid var(--safe); outline-offset:2px; }
+  button#refresh-btn .icon{ display:inline-block; transition:transform 0.5s ease; }
+  button#refresh-btn.spinning .icon{ animation:spin 0.8s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .error-box{
+    margin-top:14px; padding:14px 16px; border-radius:10px;
+    background:rgba(226,59,59,0.1); border:1px solid rgba(226,59,59,0.35);
+    font-size:13px; color:#FF9B9B; display:none;
+  }
+  .error-box.show{ display:block; }
+
+  footer{
+    max-width:880px; margin:0 auto; padding:0 24px 40px;
+    font-size:12px; color:var(--text-muted); line-height:1.7;
+  }
+  footer a{ color:var(--safe); text-decoration:none; }
+  footer a:hover{ text-decoration:underline; }
+</style>
 </head>
 <body>
 
-  <h2>全国 津波情報モニタ</h2>
-  <button onclick="checkTsunamiInfo()">最新情報を取得</button>
+<div class="horizon" id="horizon"></div>
 
-  <div id="status-display" class="alert-box">
-    情報を読み込んでいます...
-  </div>
+<header>
+  <div class="eyebrow">Tsunami Watch &mdash; 気象庁 津波予報 監視</div>
+  <h1>津波注意報・警報 モニター</h1>
+  <p class="sub">P2P地震情報 API（気象庁データ配信）を用いて、日本沿岸の津波予報をリアルタイムに表示します。</p>
+</header>
 
-  <script>
-    // CORS対応済みの「P2P地震情報 API」を利用（プロキシ不要でGitHub Pagesから直接取得可能）
-    const P2P_API_URL = "https://api.p2pquake.net/v2/history?codes=552&limit=1";
+<main>
+  <section class="status-card state-safe" id="status-card">
+    <div class="badge" id="status-badge">STATUS: 確認中</div>
+    <p class="message" id="status-message">情報を取得しています...</p>
+    <p class="detail" id="status-detail">しばらくお待ちください。</p>
 
-    async function checkTsunamiInfo() {
-      const display = document.getElementById("status-display");
-      display.style.display = "block";
-      display.className = "alert-box";
-      display.innerText = "確認中...";
+    <div class="areas-wrap" id="areas-wrap" style="display:none;">
+      <div class="areas-title">対象地域</div>
+      <div class="areas-grid" id="areas-grid"></div>
+    </div>
 
-      try {
-        const response = await fetch(P2P_API_URL);
-        if (!response.ok) throw new Error("HTTP error " + response.status);
+    <div class="controls">
+      <div class="last-updated mono">最終取得: <span id="last-updated">--:--:--</span></div>
+      <button id="refresh-btn" type="button" aria-label="最新情報を取得">
+        <span class="icon">⟳</span> 最新情報を取得
+      </button>
+    </div>
 
-        const data = await response.json();
+    <div class="error-box" id="error-box"></div>
+  </section>
+</main>
 
-        // データがない、または解除(cancelled=true)の場合は平常時表示
-        if (!data || data.length === 0 || data[0].cancelled) {
-          showNormal(display);
-          return;
-        }
+<footer>
+  データ提供: <a href="https://www.p2pquake.net/" target="_blank" rel="noopener">P2P地震情報</a>（気象庁が発表する津波予報を基にした二次配信データ）。
+  30秒ごとに自動更新されます。本ページの情報は参考情報であり、正式な発表は
+  <a href="https://www.jma.go.jp/" target="_blank" rel="noopener">気象庁</a> 公式情報を必ずご確認ください。
+</footer>
 
-        const latestTsunami = data[0];
-        const areas = latestTsunami.areas || [];
+<script>
+(function(){
+  const API_URL = 'https://api.p2pquake.net/v2/history?codes=552&limit=1';
+  const AUTO_REFRESH_MS = 30000;
 
-        let affectedAreas = {
-          major: [],
-          tsunami: [],
-          advisory: []
-        };
+  const els = {
+    horizon: document.getElementById('horizon'),
+    card: document.getElementById('status-card'),
+    badge: document.getElementById('status-badge'),
+    message: document.getElementById('status-message'),
+    detail: document.getElementById('status-detail'),
+    areasWrap: document.getElementById('areas-wrap'),
+    areasGrid: document.getElementById('areas-grid'),
+    lastUpdated: document.getElementById('last-updated'),
+    refreshBtn: document.getElementById('refresh-btn'),
+    errorBox: document.getElementById('error-box'),
+  };
 
-        // 各地域の警報グレードを分類
-        areas.forEach(area => {
-          // grade: MajorWarning (大津波警報), Warning (津波警報), Advisory (津波注意報)
-          if (area.grade === "MajorWarning") {
-            affectedAreas.major.push(area.name);
-          } else if (area.grade === "Warning") {
-            affectedAreas.tsunami.push(area.name);
-          } else if (area.grade === "Advisory") {
-            affectedAreas.advisory.push(area.name);
-          }
-        });
+  const GRADE_LABEL = {
+    MajorWarning: '大津波警報',
+    Warning: '津波警報',
+    Watch: '津波注意報',
+    Unknown: '不明'
+  };
 
-        // 画面の表示切替
-        if (affectedAreas.major.length > 0) {
-          display.className = "alert-box major-tsunami";
-          display.innerHTML = `
-            🚨【大津波警報 発令中】<br>
-            沿岸部の方は今すぐ高台や頑丈な建物の上層へ逃げてください！<br>
-            <div class="area-list"><strong>対象地域:</strong> ${affectedAreas.major.join("、")}</div>
-          `;
-        } else if (affectedAreas.tsunami.length > 0) {
-          display.className = "alert-box tsunami";
-          display.innerHTML = `
-            ⚠️【津波警報 発令中】<br>
-            海岸や川の近くにいる方は、今すぐ離れて安全な場所へ逃げてください！<br>
-            <div class="area-list"><strong>対象地域:</strong> ${affectedAreas.tsunami.join("、")}</div>
-          `;
-        } else if (affectedAreas.advisory.length > 0) {
-          display.className = "alert-box advisory";
-          display.innerHTML = `
-            🟡【津波注意報 発令中】<br>
-            海の中にいる方はすぐに海から上がり、海岸から離れてください。<br>
-            <div class="area-list"><strong>対象地域:</strong> ${affectedAreas.advisory.join("、")}</div>
-          `;
-        } else {
-          showNormal(display);
-        }
+  function setState(state){
+    els.card.className = 'status-card state-' + state;
+    els.horizon.className = 'horizon' + (state === 'safe' ? '' : ' ' + (state === 'major' ? 'major' : state));
+  }
 
-      } catch (error) {
-        console.error("データ取得エラー:", error);
-        display.style.display = "block";
-        display.style.backgroundColor = "#6c757d";
-        display.innerText = "情報の取得に失敗しました。テレビ・ラジオ等のニュースをご確認ください。";
+  function renderSafe(reasonText){
+    setState('safe');
+    els.badge.textContent = 'STATUS: 平常';
+    els.message.textContent = '🟢 現在、津波注意報・警報は発表されていません';
+    els.detail.textContent = reasonText || '最新の気象庁発表を確認し、津波に関する情報はありませんでした。';
+    els.areasWrap.style.display = 'none';
+  }
+
+  function renderActive(level, areas){
+    if(level === 'MajorWarning'){
+      setState('major');
+      els.badge.textContent = 'STATUS: 大津波警報';
+      els.message.textContent = '🚨【大津波警報】今すぐ高台へ逃げてください！';
+      els.detail.textContent = '沿岸部・河口付近には絶対に近づかず、可能な限り高い場所へ避難してください。';
+    } else if(level === 'Warning'){
+      setState('warning');
+      els.badge.textContent = 'STATUS: 津波警報';
+      els.message.textContent = '⚠️【津波警報】今すぐ海岸や川から離れて逃げてください！';
+      els.detail.textContent = '海岸・河川沿いから離れ、安全な場所へ避難してください。';
+    } else { // Watch = 注意報
+      setState('advisory');
+      els.badge.textContent = 'STATUS: 津波注意報';
+      els.message.textContent = '🟡【津波注意報】海から上がり、海岸から離れてください';
+      els.detail.textContent = '海水浴や磯遊び、漁業などの海の活動を中止し、海岸から離れてください。';
+    }
+
+    if(areas && areas.length){
+      els.areasWrap.style.display = 'block';
+      els.areasGrid.innerHTML = areas.map(a => {
+        const gradeClass = a.grade === 'MajorWarning' ? 'g-major'
+          : a.grade === 'Warning' ? 'g-warning'
+          : 'g-watch';
+        const gradeLabel = GRADE_LABEL[a.grade] || a.grade;
+        return `<div class="area-chip ${gradeClass}">
+          <span>${escapeHTML(a.name)}</span>
+          <span class="grade">${escapeHTML(gradeLabel)}</span>
+        </div>`;
+      }).join('');
+    } else {
+      els.areasWrap.style.display = 'none';
+    }
+  }
+
+  function escapeHTML(str){
+    return String(str).replace(/[&<>"']/g, c => ({
+      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+    }[c]));
+  }
+
+  const LEVEL_ORDER = { MajorWarning: 3, Warning: 2, Watch: 1, Unknown: 0 };
+
+  function pickHighestLevel(areas){
+    let top = null;
+    for(const a of areas){
+      if(!top || (LEVEL_ORDER[a.grade] || 0) > (LEVEL_ORDER[top] || 0)){
+        top = a.grade;
       }
     }
+    return top;
+  }
 
-    function showNormal(display) {
-      display.className = "alert-box normal";
-      display.innerHTML = "現在、日本全国に津波注意報・警報・大津波警報は発表されていません。";
+  function showError(msg){
+    els.errorBox.textContent = msg;
+    els.errorBox.classList.add('show');
+  }
+  function clearError(){
+    els.errorBox.classList.remove('show');
+    els.errorBox.textContent = '';
+  }
+
+  async function fetchTsunamiData(){
+    els.refreshBtn.classList.add('spinning');
+    clearError();
+    try{
+      const res = await fetch(API_URL, { cache: 'no-store' });
+      if(!res.ok) throw new Error('APIエラー (HTTP ' + res.status + ')');
+      const data = await res.json();
+
+      if(!Array.isArray(data) || data.length === 0){
+        renderSafe('取得可能な津波予報データがありませんでした。');
+      } else {
+        const latest = data[0];
+        const areas = Array.isArray(latest.areas) ? latest.areas : [];
+
+        if(latest.cancelled === true || areas.length === 0){
+          renderSafe();
+        } else {
+          const topLevel = pickHighestLevel(areas);
+          renderActive(topLevel, areas);
+        }
+      }
+
+      const now = new Date();
+      els.lastUpdated.textContent = now.toLocaleTimeString('ja-JP', { hour12:false });
+    } catch(err){
+      console.error(err);
+      showError('情報の取得に失敗しました（' + err.message + '）。通信環境をご確認のうえ、再取得ボタンをお試しください。');
+    } finally {
+      els.refreshBtn.classList.remove('spinning');
     }
+  }
 
-    // ページ読み込み時に実行
-    checkTsunamiInfo();
-  </script>
+  els.refreshBtn.addEventListener('click', fetchTsunamiData);
+
+  fetchTsunamiData();
+  setInterval(fetchTsunamiData, AUTO_REFRESH_MS);
+})();
+</script>
 
 </body>
 </html>
