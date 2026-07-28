@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>全国 津波情報モニタ</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      background-color: #f4f4f9;
+    }
+    
+    .alert-box {
+      display: none;
+      padding: 20px;
+      border-radius: 8px;
+      color: #fff;
+      font-weight: bold;
+      text-align: center;
+      margin-top: 20px;
+      line-height: 1.6;
+    }
+
+    /* 各警報レベルに応じたスタイル */
+    .major-tsunami {
+      background-color: #c40000; /* 大津波警報 */
+      font-size: 24px;
+      animation: blink 1s infinite;
+    }
+
+    .tsunami {
+      background-color: #e60000; /* 津波警報 */
+      font-size: 20px;
+    }
+
+    .advisory {
+      background-color: #f29c00; /* 津波注意報 */
+      font-size: 18px;
+    }
+
+    .normal {
+      display: block;
+      background-color: #28a745;
+      font-size: 16px;
+    }
+
+    .area-list {
+      margin-top: 10px;
+      font-size: 16px;
+      background: rgba(0, 0, 0, 0.15);
+      padding: 10px;
+      border-radius: 4px;
+    }
+
+    @keyframes blink {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+  <h2>全国 津波情報モニタ</h2>
+  <button onclick="checkTsunamiInfo()">最新情報を取得</button>
+
+  <div id="status-display" class="alert-box">
+    情報を読み込んでいます...
+  </div>
+
+  <script>
+    // 気象庁の津波情報JSON取得URL
+    const JMA_TSUNAMI_URL = "https://www.jma.go.jp/bosai/tsunami/data/vtse41.json";
+
+    async function checkTsunamiInfo() {
+      const display = document.getElementById("status-display");
+      display.style.display = "block";
+      display.className = "alert-box";
+      display.innerText = "確認中...";
+
+      try {
+        const response = await fetch(JMA_TSUNAMI_URL);
+        const data = await response.json();
+
+        // 発令状況の記録用
+        let maxLevel = 0; // 0:なし, 1:注意報, 2:警報, 3:大津波警報
+        let affectedAreas = {
+          major: [],
+          tsunami: [],
+          advisory: []
+        };
+
+        // APIデータから対象地域の警報状態を取得
+        if (data && data.Body && data.Body.Tsunami && data.Body.Tsunami.Item) {
+          const items = data.Body.Tsunami.Item;
+
+          for (const item of items) {
+            const areaName = item.Area.Name; // 沿岸の地域名
+            const categoryName = item.Category.Kind.Name; // 警報種別
+
+            if (categoryName.includes("大津波")) {
+              maxLevel = Math.max(maxLevel, 3);
+              affectedAreas.major.push(areaName);
+            } else if (categoryName.includes("警報")) {
+              maxLevel = Math.max(maxLevel, 2);
+              affectedAreas.tsunami.push(areaName);
+            } else if (categoryName.includes("注意報")) {
+              maxLevel = Math.max(maxLevel, 1);
+              affectedAreas.advisory.push(areaName);
+            }
+          }
+        }
+
+        // 表示の切り替え
+        if (maxLevel === 3) {
+          display.className = "alert-box major-tsunami";
+          display.innerHTML = `
+            🚨【大津波警報 発令中】<br>
+            沿岸部の方は今すぐ高台や頑丈な建物の上層へ逃げてください！<br>
+            <div class="area-list">対象地域: ${affectedAreas.major.join("、")}</div>
+          `;
+        } else if (maxLevel === 2) {
+          display.className = "alert-box tsunami";
+          display.innerHTML = `
+            ⚠️【津波警報 発令中】<br>
+            海岸や川の近くにいる方は、今すぐ離れて安全な場所へ逃げてください！<br>
+            <div class="area-list">対象地域: ${affectedAreas.tsunami.join("、")}</div>
+          `;
+        } else if (maxLevel === 1) {
+          display.className = "alert-box advisory";
+          display.innerHTML = `
+            🟡【津波注意報 発令中】<br>
+            海の中にいる方はすぐに海から上がり、海岸から離れてください。<br>
+            <div class="area-list">対象地域: ${affectedAreas.advisory.join("、")}</div>
+          `;
+        } else {
+          display.className = "alert-box normal";
+          display.innerHTML = "現在、日本全国に津波注意報・警報・大津波警報は発表されていません。";
+        }
+
+      } catch (error) {
+        console.error("データ取得エラー:", error);
+        display.style.display = "block";
+        display.style.backgroundColor = "#6c757d";
+        display.innerText = "情報の取得に失敗しました。最新のテレビ・ラジオ等のニュースをご確認ください。";
+      }
+    }
+
+    // ページ読み込み時に実行
+    checkTsunamiInfo();
+  </script>
+
+</body>
+</html>
