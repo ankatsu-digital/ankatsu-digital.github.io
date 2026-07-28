@@ -46,15 +46,16 @@
 
     .area-list {
       margin-top: 10px;
-      font-size: 16px;
-      background: rgba(0, 0, 0, 0.15);
+      font-size: 15px;
+      background: rgba(0, 0, 0, 0.2);
       padding: 10px;
       border-radius: 4px;
+      text-align: left;
     }
 
     @keyframes blink {
       0% { opacity: 1; }
-      50% { opacity: 0.5; }
+      50% { opacity: 0.4; }
       100% { opacity: 1; }
     }
   </style>
@@ -69,94 +70,102 @@
   </div>
 
   <script>
-    // CORSエラー回避用プロキシ経由で気象庁のデータを取得
-    const TARGET_URL = "https://www.jma.go.jp/bosai/tsunami/data/vtse41.json";
-    const JMA_TSUNAMI_URL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(TARGET_URL);
-
     async function checkTsunamiInfo() {
       const display = document.getElementById("status-display");
       display.style.display = "block";
       display.className = "alert-box";
       display.innerText = "確認中...";
 
-      try {
-        const response = await fetch(JMA_TSUNAMI_URL);
-        if (!response.ok) throw new Error("HTTP error " + response.status);
-        
-        const data = await response.json();
+      // 高速・高安定なCORSプロキシを経由して気象庁の最新津波一覧を取得
+      const targetUrl = "https://www.jma.go.jp/bosai/tsunami/data/vtse41.json";
+      const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(targetUrl);
 
-        let maxLevel = 0; // 0:なし, 1:注意報, 2:警報, 3:大津波警報
+      try {
+        const response = await fetch(proxyUrl);
+        if (!response.ok) throw new Error("通信エラー");
+        
+        const listData = await response.json();
+
+        if (!listData || listData.length === 0) {
+          showNormal(display);
+          return;
+        }
+
+        // 最新の津波電報IDを取得
+        const latestId = listData[0].id;
+        
+        // 個別の詳細データを取得
+        const detailUrl = `https://www.jma.go.jp/bosai/tsunami/data/${latestId}.json`;
+        const detailProxyUrl = "https://corsproxy.io/?" + encodeURIComponent(detailUrl);
+        
+        const detailRes = await fetch(detailProxyUrl);
+        const detailData = await detailRes.json();
+
+        // 発表状況の解析
         let affectedAreas = {
           major: [],
           tsunami: [],
           advisory: []
         };
 
-        if (Array.isArray(data)) {
-          // 配列形式で返ってくる場合の対応
-          for (const entry of data) {
-            if (entry.Body && entry.Body.Tsunami && entry.Body.Tsunami.Item) {
-              parseTsunamiItems(entry.Body.Tsunami.Item, affectedAreas);
+        const items = detailData?.Body?.Tsunami?.Item;
+
+        if (items) {
+          const itemList = Array.isArray(items) ? items : [items];
+          for (const item of itemList) {
+            const areaName = item.Area?.Name || "";
+            const kindName = item.Category?.Kind?.Name || "";
+
+            if (kindName.includes("大津波")) {
+              affectedAreas.major.push(areaName);
+            } else if (kindName.includes("警報")) {
+              affectedAreas.tsunami.push(areaName);
+            } else if (kindName.includes("注意報")) {
+              affectedAreas.advisory.push(areaName);
             }
           }
-        } else if (data && data.Body && data.Body.Tsunami && data.Body.Tsunami.Item) {
-          parseTsunamiItems(data.Body.Tsunami.Item, affectedAreas);
         }
 
-        if (affectedAreas.major.length > 0) maxLevel = 3;
-        else if (affectedAreas.tsunami.length > 0) maxLevel = 2;
-        else if (affectedAreas.advisory.length > 0) maxLevel = 1;
-
-        if (maxLevel === 3) {
+        // 画面表示判定
+        if (affectedAreas.major.length > 0) {
           display.className = "alert-box major-tsunami";
           display.innerHTML = `
             🚨【大津波警報 発令中】<br>
             沿岸部の方は今すぐ高台や頑丈な建物の上層へ逃げてください！<br>
-            <div class="area-list">対象地域: ${affectedAreas.major.join("、")}</div>
+            <div class="area-list"><strong>対象地域:</strong> ${affectedAreas.major.join("、")}</div>
           `;
-        } else if (maxLevel === 2) {
+        } else if (affectedAreas.tsunami.length > 0) {
           display.className = "alert-box tsunami";
           display.innerHTML = `
             ⚠️【津波警報 発令中】<br>
             海岸や川の近くにいる方は、今すぐ離れて安全な場所へ逃げてください！<br>
-            <div class="area-list">対象地域: ${affectedAreas.tsunami.join("、")}</div>
+            <div class="area-list"><strong>対象地域:</strong> ${affectedAreas.tsunami.join("、")}</div>
           `;
-        } else if (maxLevel === 1) {
+        } else if (affectedAreas.advisory.length > 0) {
           display.className = "alert-box advisory";
           display.innerHTML = `
             🟡【津波注意報 発令中】<br>
             海の中にいる方はすぐに海から上がり、海岸から離れてください。<br>
-            <div class="area-list">対象地域: ${affectedAreas.advisory.join("、")}</div>
+            <div class="area-list"><strong>対象地域:</strong> ${affectedAreas.advisory.join("、")}</div>
           `;
         } else {
-          display.className = "alert-box normal";
-          display.innerHTML = "現在、日本全国に津波注意報・警報・大津波警報は発表されていません。";
+          showNormal(display);
         }
 
       } catch (error) {
-        console.error("データ取得エラー:", error);
+        console.error("エラー詳細:", error);
         display.style.display = "block";
         display.style.backgroundColor = "#6c757d";
-        display.innerText = "情報の取得に失敗しました。ネットワーク接続またはブラウザ設定をご確認ください。";
+        display.innerText = "情報の取得に失敗しました。インターネット接続を確認するか、少し時間を置いて再度お試しください。";
       }
     }
 
-    function parseTsunamiItems(items, affectedAreas) {
-      const itemList = Array.isArray(items) ? items : [items];
-      for (const item of itemList) {
-        const areaName = item.Area ? item.Area.Name : "";
-        const categoryName = item.Category && item.Category.Kind ? item.Category.Kind.Name : "";
-
-        if (categoryName.includes("大津波")) {
-          affectedAreas.major.push(areaName);
-        } else if (categoryName.includes("警報")) {
-          affectedAreas.tsunami.push(areaName);
-        } else if (categoryName.includes("注意報")) {
-          affectedAreas.advisory.push(areaName);
-        }
-      }
+    function showNormal(display) {
+      display.className = "alert-box normal";
+      display.innerHTML = "現在、日本全国に津波注意報・警報・大津波警報は発表されていません。";
     }
 
+    // 初回実行
     checkTsunamiInfo();
   </script>
 
