@@ -5,10 +5,15 @@
  *   <script src="tsunami-widget.js"></script>
  *
  * ・平常時（津波注意報/警報が発表されていない時）は何も表示されません。
- * ・津波注意報・警報・大津波警報が発表されると、ページ上部に自動でバナーが出現します。
- * ・データ提供元: P2P地震情報 JSON API (https://www.p2pquake.net/)
- *   気象庁の津波予報を基にした二次配信データです。CORSが許可されているため
- *   GitHub Pages 等の静的ホスティングからプロキシなしで直接 fetch できます。
+ * ・津波注意報・警報・大津波警報が発表されると、ページの一番上に帯（バナー）が
+ *   自動で追加されます。position:fixed ではなく通常のページの一部として
+ *   挿入されるので、既存のヘッダーやコンテンツと重なりません
+ *   （バナーの分だけページが下にずれるイメージです）。
+ * ・危険を知らせる表示のため、閉じるボタンは付けていません。
+ *   状況が解除されれば自動で消えます。
+ *
+ * データ提供元: P2P地震情報 JSON API (https://www.p2pquake.net/)
+ * 気象庁の津波予報を基にした二次配信データです。
  */
 (function () {
   var API_URL = 'https://api.p2pquake.net/v2/history?codes=552&limit=1';
@@ -29,30 +34,29 @@
     if (document.getElementById(STYLE_ID)) return;
     var css = ''
       + '#' + BANNER_ID + '{'
-      + '  position:fixed; top:0; left:0; right:0; z-index:2147483647;'
-      + '  display:none; font-family:"Hiragino Sans","Yu Gothic",sans-serif;'
-      + '  box-shadow:0 2px 14px rgba(0,0,0,0.25);'
+      + '  display:none; width:100%; box-sizing:border-box;'
+      + '  font-family:"Hiragino Sans","Yu Gothic",sans-serif;'
+      + '  border-bottom:3px solid rgba(0,0,0,0.15);'
       + '}'
       + '#' + BANNER_ID + ' .tw-inner{'
-      + '  max-width:1000px; margin:0 auto; padding:12px 44px 12px 16px;'
-      + '  display:flex; align-items:center; gap:14px; flex-wrap:wrap; position:relative;'
+      + '  max-width:1000px; margin:0 auto; padding:16px 20px;'
       + '}'
-      + '#' + BANNER_ID + ' .tw-msg{ font-weight:700; font-size:15px; line-height:1.4; }'
-      + '#' + BANNER_ID + ' .tw-areas{ font-size:12.5px; opacity:0.92; line-height:1.5; }'
-      + '#' + BANNER_ID + ' .tw-areas b{ font-weight:600; }'
-      + '#' + BANNER_ID + ' .tw-close{'
-      + '  position:absolute; right:10px; top:50%; transform:translateY(-50%);'
-      + '  background:rgba(255,255,255,0.18); border:none; color:inherit;'
-      + '  width:26px; height:26px; border-radius:50%; cursor:pointer; font-size:15px;'
-      + '  line-height:1; display:flex; align-items:center; justify-content:center;'
+      + '#' + BANNER_ID + ' .tw-title{'
+      + '  font-weight:900; font-size:17px; line-height:1.5; margin:0 0 4px;'
+      + '  display:flex; align-items:center; gap:8px;'
       + '}'
-      + '#' + BANNER_ID + ' .tw-close:hover{ background:rgba(255,255,255,0.3); }'
+      + '#' + BANNER_ID + ' .tw-sub{ font-size:13.5px; line-height:1.6; margin:0 0 8px; opacity:0.95; }'
+      + '#' + BANNER_ID + ' .tw-areas{'
+      + '  font-size:13px; line-height:1.7; background:rgba(255,255,255,0.18);'
+      + '  border-radius:8px; padding:8px 10px;'
+      + '}'
+      + '#' + BANNER_ID + ' .tw-areas b{ font-weight:700; }'
       + '#' + BANNER_ID + '.tw-advisory{ background:#FBBF24; color:#3A2E08; }'
       + '#' + BANNER_ID + '.tw-warning{ background:#E23B3B; color:#fff; }'
       + '#' + BANNER_ID + '.tw-major{ background:#B00E0E; color:#fff; animation:tw-blink 1s step-start infinite; }'
       + '@keyframes tw-blink{ 0%,49%{ background-color:#B00E0E; } 50%,100%{ background-color:#5A0707; } }'
       + '@media (prefers-reduced-motion: reduce){ #' + BANNER_ID + '.tw-major{ animation:none; background:#8A0B0B; } }'
-      + '@media (max-width:600px){ #' + BANNER_ID + ' .tw-msg{ font-size:13.5px; } #' + BANNER_ID + ' .tw-areas{ font-size:11.5px; } }';
+      + '@media (max-width:600px){ #' + BANNER_ID + ' .tw-title{ font-size:15px; } #' + BANNER_ID + ' .tw-sub, #' + BANNER_ID + ' .tw-areas{ font-size:12px; } }';
     var style = document.createElement('style');
     style.id = STYLE_ID;
     style.textContent = css;
@@ -66,17 +70,12 @@
     el.id = BANNER_ID;
     el.innerHTML =
       '<div class="tw-inner">' +
-        '<div>' +
-          '<div class="tw-msg" data-tw="msg"></div>' +
-          '<div class="tw-areas" data-tw="areas"></div>' +
-        '</div>' +
-        '<button class="tw-close" type="button" aria-label="閉じる" data-tw="close">✕</button>' +
+        '<p class="tw-title" data-tw="title"></p>' +
+        '<p class="tw-sub" data-tw="sub"></p>' +
+        '<div class="tw-areas" data-tw="areas"></div>' +
       '</div>';
+    // 通常のフロー要素として、bodyの一番上に挿入する（重なり防止）
     document.body.insertBefore(el, document.body.firstChild);
-    el.querySelector('[data-tw="close"]').addEventListener('click', function () {
-      el.style.display = 'none';
-      el.dataset.dismissed = 'true';
-    });
     return el;
   }
 
@@ -97,41 +96,39 @@
 
   function showBanner(level, areas) {
     var el = ensureBanner();
-    // 手動で閉じている間は、レベルが変わらない限り再表示しない
-    var prevLevel = el.dataset.level;
-    if (el.dataset.dismissed === 'true' && prevLevel === level) return;
-    el.dataset.dismissed = 'false';
-    el.dataset.level = level;
-
     el.className = level === 'MajorWarning' ? 'tw-major'
       : level === 'Warning' ? 'tw-warning'
       : 'tw-advisory';
 
-    var msg;
-    if (level === 'MajorWarning') msg = '🚨【大津波警報】今すぐ高台へ逃げてください！';
-    else if (level === 'Warning') msg = '⚠️【津波警報】今すぐ海岸や川から離れて逃げてください！';
-    else msg = '🟡【津波注意報】海から上がり、海岸から離れてください';
+    var title, sub;
+    if (level === 'MajorWarning') {
+      title = '🚨 大津波警報が発表されています';
+      sub = '今すぐ高台や避難場所へ逃げてください。海岸や川に絶対に近づかないでください。';
+    } else if (level === 'Warning') {
+      title = '⚠️ 津波警報が発表されています';
+      sub = '今すぐ海岸や川から離れ、安全な高い場所へ避難してください。';
+    } else {
+      title = '🟡 津波注意報が発表されています';
+      sub = '海水浴・磯遊び・漁業など海での活動をやめ、海岸から離れてください。';
+    }
 
-    el.querySelector('[data-tw="msg"]').textContent = msg;
+    el.querySelector('[data-tw="title"]').textContent = title;
+    el.querySelector('[data-tw="sub"]').textContent = sub;
 
-    var areaText = '';
+    var areaHtml = '';
     if (areas && areas.length) {
-      areaText = '対象地域: ' + areas.map(function (a) {
+      areaHtml = '<b>対象地域：</b>' + areas.map(function (a) {
         return escapeHTML(a.name) + '（' + (GRADE_LABEL[a.grade] || a.grade) + '）';
       }).join('、');
     }
-    el.querySelector('[data-tw="areas"]').innerHTML = areaText;
+    el.querySelector('[data-tw="areas"]').innerHTML = areaHtml;
 
     el.style.display = 'block';
   }
 
   function hideBanner() {
     var el = document.getElementById(BANNER_ID);
-    if (el) {
-      el.style.display = 'none';
-      el.dataset.dismissed = 'false';
-      el.dataset.level = '';
-    }
+    if (el) el.style.display = 'none';
   }
 
   function check() {
@@ -152,8 +149,8 @@
         }
       })
       .catch(function (err) {
-        // 埋め込みウィジェットのため、通信エラー時は静かに失敗させ、
-        // 既存ページの表示を妨げない（コンソールにのみ記録）。
+        // 埋め込みウィジェットのため、通信エラー時は既存ページの表示を妨げないよう
+        // 静かに失敗させ、コンソールにのみ記録する。
         console.warn('[tsunami-widget] 取得失敗:', err.message);
       });
   }
