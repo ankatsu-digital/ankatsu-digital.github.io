@@ -1,115 +1,154 @@
 <!DOCTYPE html>
 <html lang="ja">
-
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>アンカツ＋</title>
-</head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>全国 津波情報モニタ</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      background-color: #f4f4f9;
+    }
+    
+    .alert-box {
+      display: none;
+      padding: 20px;
+      border-radius: 8px;
+      color: #fff;
+      font-weight: bold;
+      text-align: center;
+      margin-top: 20px;
+      line-height: 1.6;
+    }
 
+    .major-tsunami {
+      background-color: #c40000;
+      font-size: 24px;
+      animation: blink 1s infinite;
+    }
+
+    .tsunami {
+      background-color: #e60000;
+      font-size: 20px;
+    }
+
+    .advisory {
+      background-color: #f29c00;
+      font-size: 18px;
+    }
+
+    .normal {
+      display: block;
+      background-color: #28a745;
+      font-size: 16px;
+    }
+
+    .details {
+      margin-top: 10px;
+      font-size: 14px;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 10px;
+      border-radius: 4px;
+      text-align: left;
+      font-weight: normal;
+    }
+
+    @keyframes blink {
+      0% { opacity: 1; }
+      50% { opacity: 0.4; }
+      100% { opacity: 1; }
+    }
+  </style>
+</head>
 <body>
 
-<h1>🏯 アンカツ＋</h1>
+  <h2>全国 津波情報モニタ</h2>
+  <button onclick="checkTsunamiInfo()">最新情報を取得</button>
 
-<button id="btn">通知を登録</button>
+  <div id="status-display" class="alert-box">
+    情報を読み込んでいます...
+  </div>
 
-<p id="status">待機中</p>
+  <script>
+    // Yahoo!天気の津波情報RSSをJSON変換して取得（GitHub PagesのHTTPS通信でもブロックされません）
+    const RSS_API_URL = "https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fweather.yahoo.co.jp%2Fweather%2Ftsunami%2Frss.xml";
 
+    async function checkTsunamiInfo() {
+      const display = document.getElementById("status-display");
+      display.style.display = "block";
+      display.className = "alert-box";
+      display.innerText = "確認中...";
 
-<script type="module">
+      try {
+        const response = await fetch(RSS_API_URL);
+        if (!response.ok) throw new Error("ネットワーク応答エラー");
 
-import { initializeApp }
-from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        const data = await response.json();
 
-import {
- getMessaging,
- getToken
-}
-from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
+        if (data.status !== "ok" || !data.items) {
+          throw new Error("データ形式エラー");
+        }
 
+        // 記事タイトルや本文から状況を解析
+        let hasMajor = false;
+        let hasTsunami = false;
+        let hasAdvisory = false;
+        let summaryText = "";
 
-// Firebase設定（あなたのやつ）
-const firebaseConfig = {
-  apiKey: "AIzaSyCzNeQzzoUuMVhZEzE9IEZ8WgVBcTyNuHc",
-  authDomain: "test-54a1b.firebaseapp.com",
-  projectId: "test-54a1b",
-  storageBucket: "test-54a1b.firebasestorage.app",
-  messagingSenderId: "401926525341",
-  appId: "1:401926525341:web:078a2f16ea8219799e9f74"
-};
+        for (const item of data.items) {
+          const content = item.title + " " + item.description;
 
+          if (content.includes("大津波警報")) {
+            hasMajor = true;
+            summaryText += item.title + "\n";
+          } else if (content.includes("津波警報")) {
+            hasTsunami = true;
+            summaryText += item.title + "\n";
+          } else if (content.includes("津波注意報")) {
+            hasAdvisory = true;
+            summaryText += item.title + "\n";
+          }
+        }
 
-// 初期化
-const app = initializeApp(firebaseConfig);
-const messaging = getMessaging(app);
+        // 表示の判定
+        if (hasMajor) {
+          display.className = "alert-box major-tsunami";
+          display.innerHTML = `
+            🚨【大津波警報 発令中】<br>
+            沿岸部の方は今すぐ高台や頑丈な建物の上層へ逃げてください！
+            <div class="details">${summaryText || "詳細はニュースをご確認ください"}</div>
+          `;
+        } else if (hasTsunami) {
+          display.className = "alert-box tsunami";
+          display.innerHTML = `
+            ⚠️【津波警報 発令中】<br>
+            海岸や川の近くにいる方は、今すぐ離れて安全な場所へ逃げてください！
+            <div class="details">${summaryText || "詳細はニュースをご確認ください"}</div>
+          `;
+        } else if (hasAdvisory) {
+          display.className = "alert-box advisory";
+          display.innerHTML = `
+            🟡【津波注意報 発令中】<br>
+            海の中にいる方はすぐに海から上がり、海岸から離れてください。
+            <div class="details">${summaryText || "詳細はニュースをご確認ください"}</div>
+          `;
+        } else {
+          display.className = "alert-box normal";
+          display.innerHTML = "現在、日本全国に津波注意報・警報・大津波警報は発表されていません。";
+        }
 
-
-// GAS URL（あなたの）
-const GAS_URL =
-"https://script.google.com/macros/s/AKfycbzqsZ9rI_fYsrijPqj80so1sXpQhjI-BopgPhlR5QDWejyaH1pF0RSa2RUQdS13Owyiww/exec";
-
-
-
-// ボタン
-document.getElementById("btn").onclick = async () => {
-
-  const status = document.getElementById("status");
-
-  try {
-
-    status.innerHTML = "許可リクエスト中...";
-
-    // 通知許可
-    const permission = await Notification.requestPermission();
-
-    if (permission !== "granted") {
-      status.innerHTML = "❌ 通知拒否";
-      return;
+      } catch (error) {
+        console.error("取得エラー:", error);
+        display.style.display = "block";
+        display.style.backgroundColor = "#6c757d";
+        display.innerText = "情報の取得に失敗しました。時間をおいて試すか、テレビ・ラジオ等の防災情報をご確認ください。";
+      }
     }
 
-    status.innerHTML = "トークン取得中...";
-
-
-    // トークン取得
-    const token = await getToken(messaging, {
-      vapidKey: "BAQyKRS74_KvlFJUrQuOAr4uH2gkUD2hgi0QyPUppPvAOOgYt29mK2GIiUhyty23qXQrWV9d352ivngWjV7FTRs"
-    });
-
-
-    console.log("TOKEN:", token);
-
-
-    if (!token) {
-      status.innerHTML = "❌ トークン取得失敗";
-      return;
-    }
-
-    status.innerHTML = "送信中...";
-
-
-    // GAS送信（確実に通す）
-    await fetch(GAS_URL, {
-      method: "POST",
-      mode: "no-cors",
-      body: JSON.stringify({
-        token: token,
-        device: "Chrome"
-      })
-    });
-
-
-    status.innerHTML = "✅ 登録完了";
-
-  } catch (e) {
-
-    console.error(e);
-    status.innerHTML = "❌ エラー：" + e;
-
-  }
-
-};
-
-</script>
+    // 初回読み込み時に実行
+    checkTsunamiInfo();
+  </script>
 
 </body>
 </html>
