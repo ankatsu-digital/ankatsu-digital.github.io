@@ -22,20 +22,19 @@
       line-height: 1.6;
     }
 
-    /* 各警報レベルに応じたスタイル */
     .major-tsunami {
-      background-color: #c40000; /* 大津波警報 */
+      background-color: #c40000;
       font-size: 24px;
       animation: blink 1s infinite;
     }
 
     .tsunami {
-      background-color: #e60000; /* 津波警報 */
+      background-color: #e60000;
       font-size: 20px;
     }
 
     .advisory {
-      background-color: #f29c00; /* 津波注意報 */
+      background-color: #f29c00;
       font-size: 18px;
     }
 
@@ -70,8 +69,9 @@
   </div>
 
   <script>
-    // 気象庁の津波情報JSON取得URL
-    const JMA_TSUNAMI_URL = "https://www.jma.go.jp/bosai/tsunami/data/vtse41.json";
+    // CORSエラー回避用プロキシ経由で気象庁のデータを取得
+    const TARGET_URL = "https://www.jma.go.jp/bosai/tsunami/data/vtse41.json";
+    const JMA_TSUNAMI_URL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(TARGET_URL);
 
     async function checkTsunamiInfo() {
       const display = document.getElementById("status-display");
@@ -81,9 +81,10 @@
 
       try {
         const response = await fetch(JMA_TSUNAMI_URL);
+        if (!response.ok) throw new Error("HTTP error " + response.status);
+        
         const data = await response.json();
 
-        // 発令状況の記録用
         let maxLevel = 0; // 0:なし, 1:注意報, 2:警報, 3:大津波警報
         let affectedAreas = {
           major: [],
@@ -91,28 +92,21 @@
           advisory: []
         };
 
-        // APIデータから対象地域の警報状態を取得
-        if (data && data.Body && data.Body.Tsunami && data.Body.Tsunami.Item) {
-          const items = data.Body.Tsunami.Item;
-
-          for (const item of items) {
-            const areaName = item.Area.Name; // 沿岸の地域名
-            const categoryName = item.Category.Kind.Name; // 警報種別
-
-            if (categoryName.includes("大津波")) {
-              maxLevel = Math.max(maxLevel, 3);
-              affectedAreas.major.push(areaName);
-            } else if (categoryName.includes("警報")) {
-              maxLevel = Math.max(maxLevel, 2);
-              affectedAreas.tsunami.push(areaName);
-            } else if (categoryName.includes("注意報")) {
-              maxLevel = Math.max(maxLevel, 1);
-              affectedAreas.advisory.push(areaName);
+        if (Array.isArray(data)) {
+          // 配列形式で返ってくる場合の対応
+          for (const entry of data) {
+            if (entry.Body && entry.Body.Tsunami && entry.Body.Tsunami.Item) {
+              parseTsunamiItems(entry.Body.Tsunami.Item, affectedAreas);
             }
           }
+        } else if (data && data.Body && data.Body.Tsunami && data.Body.Tsunami.Item) {
+          parseTsunamiItems(data.Body.Tsunami.Item, affectedAreas);
         }
 
-        // 表示の切り替え
+        if (affectedAreas.major.length > 0) maxLevel = 3;
+        else if (affectedAreas.tsunami.length > 0) maxLevel = 2;
+        else if (affectedAreas.advisory.length > 0) maxLevel = 1;
+
         if (maxLevel === 3) {
           display.className = "alert-box major-tsunami";
           display.innerHTML = `
@@ -143,11 +137,26 @@
         console.error("データ取得エラー:", error);
         display.style.display = "block";
         display.style.backgroundColor = "#6c757d";
-        display.innerText = "情報の取得に失敗しました。最新のテレビ・ラジオ等のニュースをご確認ください。";
+        display.innerText = "情報の取得に失敗しました。ネットワーク接続またはブラウザ設定をご確認ください。";
       }
     }
 
-    // ページ読み込み時に実行
+    function parseTsunamiItems(items, affectedAreas) {
+      const itemList = Array.isArray(items) ? items : [items];
+      for (const item of itemList) {
+        const areaName = item.Area ? item.Area.Name : "";
+        const categoryName = item.Category && item.Category.Kind ? item.Category.Kind.Name : "";
+
+        if (categoryName.includes("大津波")) {
+          affectedAreas.major.push(areaName);
+        } else if (categoryName.includes("警報")) {
+          affectedAreas.tsunami.push(areaName);
+        } else if (categoryName.includes("注意報")) {
+          affectedAreas.advisory.push(areaName);
+        }
+      }
+    }
+
     checkTsunamiInfo();
   </script>
 
